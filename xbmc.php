@@ -229,6 +229,7 @@ class xbmcJsonRPC {
 			'params' => $params,
 			'id' => $uid
 		);
+		if($json['params'] == NULL) unset($json['params']);
 
 		$request = json_encode($json);
 		
@@ -265,14 +266,30 @@ class xbmcJson extends xbmcJsonRPC {
 	
 	public function __construct(xbmcHost $xbmcHost) {
 		parent::setUrl($xbmcHost->url());
-		$this->populateCommands($this->rpc("JSONRPC.Introspect")->commands);
+		$this->populateCommands($this->rpc("JSONRPC.Introspect"));
 	}
 	
 	private function populateCommands($remoteCommands) {
-		foreach($remoteCommands as $remoteCommand) {
-			$rpcCommand = explode(".", $remoteCommand->command);
-			if(!class_exists($rpcCommand[0])) {
-				$this->$rpcCommand[0] = new xbmcJsonCommand($rpcCommand[0], parent::getUrl(), $this);
+		if(property_exists($remoteCommands, 'commands')) {
+			$commands = $remoteCommands->commands;
+		} elseif(property_exists($remoteCommands, 'methods')) {
+			$commands = $remoteCommands->methods;
+		} else {
+			throw new xbmcError('Could not find methods/commands in JSONRPC.Introspect return');
+		}
+
+		foreach($commands as $cmd=>$remoteCommand) {
+			$rpcCommand = null;
+			if(property_exists($remoteCommand, 'command')) {
+				$rpcCommand = explode(".", $remoteCommand->command);
+			} else {
+				$rpcCommand = explode(".", $cmd);
+			}
+			
+			if($rpcCommand != null) {
+				if(!class_exists($rpcCommand[0])) {
+					$this->$rpcCommand[0] = new xbmcJsonCommand($rpcCommand[0], parent::getUrl(), $this);
+				}
 			}
 		}
 	}
